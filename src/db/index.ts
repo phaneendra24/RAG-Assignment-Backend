@@ -4,7 +4,7 @@ import fs from 'fs';
 
 sqlite3.verbose();
 
-const DB_PATH = path.join(__dirname, '../../data/app.db');
+const DB_PATH = path.join(__dirname, '../../sqlite_data/app.db');
 
 const dataDir = path.dirname(DB_PATH);
 if (!fs.existsSync(dataDir)) {
