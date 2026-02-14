@@ -18,9 +18,12 @@
     "@mozilla/readability": "^0.6.0",
     "chromadb": "^3.3.0",
     "cors": "^2.8.6",
+    "dotenv": "^17.3.1",
     "express": "^5.2.1",
     "jsdom": "^28.0.0",
+    "openai": "^6.22.0",
     "sqlite3": "^5.1.7",
+    "tiktoken": "^1.0.22",
     "zod": "^4.3.6"
   },
   "devDependencies": {
