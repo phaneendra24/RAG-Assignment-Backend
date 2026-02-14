@@ -1,0 +1,18 @@
+CREATE TABLE IF NOT EXISTS documents (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  source TEXT NOT NULL CHECK(source IN ('NOTE', 'URL')),
+  title TEXT,
+  url TEXT,
+  content TEXT NOT NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TRIGGER IF NOT EXISTS update_documents_updated_at
+AFTER UPDATE ON documents
+FOR EACH ROW
+BEGIN
+  UPDATE documents
+  SET updated_at = CURRENT_TIMESTAMP
+  WHERE id = OLD.id;
+END;

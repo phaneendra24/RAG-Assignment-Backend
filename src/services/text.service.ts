@@ -21,11 +21,9 @@ export const processAndCleanTextInput = (text: string): string => {
     })
     .join('\n');
 
-  cleaned = cleaned.replace(/[^a-zA-Z0-9\s]{4,}/g, ' '); // Just putting it but this is optional, comment for myself to examine later
-
   cleaned = cleaned.replace(/[ \t]+/g, ' ');
 
-  cleaned = cleaned.replace(/\n{3,}/g, '\n\n');
+  cleaned = cleaned.replace(/\n{2,}/g, '\n\n');
 
   cleaned = cleaned.trim();
 
@@ -34,3 +32,5 @@ export const processAndCleanTextInput = (text: string): string => {
 
   return cleaned;
 };
+
+// cleaned = cleaned.replace(/[^a-zA-Z0-9\s]{4,}/g, ' '); // Just putting it but this is optional, comment for myself to examine later

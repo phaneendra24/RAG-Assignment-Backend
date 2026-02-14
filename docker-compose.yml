@@ -1,0 +1,37 @@
+version: '3.9'
+
+services:
+  # app:
+  #   build: .
+  #   ports:
+  #     - '5001:5001'
+  #   volumes:
+  #     - .:/app
+  #     - /app/node_modules
+  #   environment:
+  #     - NODE_ENV=development
+  #     - PORT=5001
+  #     - CHROMA_DB_URL=http://chromadb:8000
+  #   depends_on:
+  #     - chromadb
+  #   command: npm run dev
+  #   networks:
+  #     - rag-network
+
+  chromadb:
+    image: chromadb/chroma:latest
+    ports:
+      - '8000:8000'
+    volumes:
+      - chroma-data:/chroma/chroma
+    environment:
+      - IS_PERSISTENT=TRUE
+    networks:
+      - rag-network
+
+volumes:
+  chroma-data:
+
+networks:
+  rag-network:
+    driver: bridge
