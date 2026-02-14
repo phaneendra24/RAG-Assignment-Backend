@@ -22,7 +22,6 @@ export const ingest = async (
   try {
     if (payload.type === 'NOTE' && typeof payload.content === 'string') {
       const cleanedText = textService.processAndCleanTextInput(payload.content);
-      console.log('Cleaned Text', cleanedText);
 
       if (cleanedText.length <= 0) {
         return { success: false, message: 'Failed to ingest data' };
@@ -33,8 +32,6 @@ export const ingest = async (
       console.log('Data added to DB : ', id);
 
       const chunks = tokenizer.chunkText(cleanedText);
-
-      console.log('chunks :', chunks);
 
       for (let i = 0; i < chunks.length; i++) {
         const chunk = chunks[i] as string;
@@ -49,15 +46,43 @@ export const ingest = async (
           title,
           url: null,
         });
-
-        break;
       }
     } else if (payload.type === 'URL' && Array.isArray(payload.content)) {
       console.log('Scrapping data started');
       const data = await scrapeService.ScrapeAndCleanDataFromUrls(
         payload.content,
       );
-      // later
+
+      console.log('Scrapping completed :', data);
+
+      for (let i = 0; i < data.length; i++) {
+        const item = data[i];
+        if (!item) continue;
+        const id = await createDocument(
+          'URL',
+          item?.title || '',
+          item.url,
+          item.cleanedText,
+        );
+        console.log('Data added to DB : ', id);
+
+        const chunks = tokenizer.chunkText(item.cleanedText);
+
+        for (let i = 0; i < chunks.length; i++) {
+          const chunk = chunks[i] as string;
+          if (!chunk.trim()) continue;
+
+          const embedding = await generateEmbedding(chunk);
+
+          await addChunkToVectorStore(randomUUID(), embedding, chunk, {
+            documentId: id,
+            sourceType: 'URL',
+            chunkIndex: i,
+            title: item.title,
+            url: item.url,
+          });
+        }
+      }
     }
 
     return { success: true, message: 'Data ingested successfully' };
@@ -76,20 +101,40 @@ export const query = async (payload: QueryInput) => {
 
   const results = await queryVectorStore(embedding, 5);
 
-  const documents = results.documents[0];
+  const un_filtered_documents = results.documents[0];
   const metadatas = results.metadatas[0];
+  const distances = results.distances?.[0];
+
+  console.log('Un filtered documents : ', distances);
+
+  const SIMILARITY_THRESHOLD = 1.2;
+
+  const documents = un_filtered_documents
+    ?.map((doc, index) => ({
+      doc,
+      meta: (metadatas || [])[index],
+      distance: distances?.[index],
+    }))
+    .filter(
+      (item) =>
+        item.distance != null &&
+        item?.distance !== undefined &&
+        item.distance < SIMILARITY_THRESHOLD,
+    );
 
   if (!documents || documents.length === 0) {
     return {
-      answer: 'No relevant information found.',
+      answer: 'No relevant information found in the knowledge base.',
       citations: [],
     };
   }
 
   const numberedContext = documents
-    .map((doc: string, index: number) => {
+    .map((doc, index) => {
+      if (!doc) return null;
       return `[${index + 1}] ${doc}`;
     })
+    .filter(Boolean)
     .join('\n\n');
 
   const prompt = `
@@ -114,16 +159,15 @@ ${payload.question}
       },
       { role: 'user', content: prompt },
     ],
-    temperature: 0,
   });
 
-  const answer = await response?.choices?[0]?.message?.content;
+  const answer = response.choices[0]?.message?.content;
 
-  const citations = await metadatas.map((meta: any, index: number) => ({
+  const citations = (metadatas || []).map((meta: any, index: number) => ({
     number: index + 1,
-    title: meta.title,
-    url: meta.url,
-    sourceType: meta.sourceType,
+    title: meta?.title,
+    url: meta?.url,
+    sourceType: meta?.sourceType,
   }));
 
   return { answer, citations };

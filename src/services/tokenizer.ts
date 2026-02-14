@@ -12,7 +12,7 @@ export const encodeText = (text: string): Uint32Array => {
 //   return textDecoder.decode(encoder.decode(tokens));
 // };
 
-const MAX_CHUNK_TOKENS = 300;
+const MAX_CHUNK_TOKENS = 500;
 
 const countTokens = (text: string): number => {
   return encoder.encode(text).length;
