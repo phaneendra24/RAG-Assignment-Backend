@@ -1,7 +1,15 @@
 import { IngestInput, QueryInput } from './data.schema';
 import * as textService from '../services/text.service';
 import * as scrapeService from '../services/scrape.service';
-import { createDocument, getDocuments } from '../db/queries';
+import {
+  createDocument,
+  getDocuments,
+  createConversation,
+  getConversations,
+  getConversationById,
+  addMessageToConversation,
+  updateConversationTitle,
+} from '../db/queries';
 import * as tokenizer from '../services/tokenizer';
 import { generateEmbedding } from '../services/embedding';
 import {
@@ -101,6 +109,14 @@ export const getItems = async (source?: string) => {
 };
 
 export const query = async (payload: QueryInput) => {
+  let conversationId = payload.conversation_id;
+
+  if (!conversationId) {
+    conversationId = await createConversation(payload.question.slice(0, 50));
+  }
+
+  await addMessageToConversation(conversationId, 'user', payload.question);
+
   const embedding = await generateEmbedding(payload.question);
 
   const results = await queryVectorStore(embedding, 5);
@@ -127,9 +143,12 @@ export const query = async (payload: QueryInput) => {
     );
 
   if (!documents || documents.length === 0) {
+    const answer = 'No relevant information found in the knowledge base.';
+    await addMessageToConversation(conversationId, 'assistant', answer, []);
     return {
-      answer: 'No relevant information found in the knowledge base.',
+      answer,
       citations: [],
+      conversation_id: conversationId,
     };
   }
 
@@ -167,7 +186,7 @@ ${payload.question}
     ],
   });
 
-  const answer = response.choices[0]?.message?.content;
+  const answer = response.choices[0]?.message?.content || 'No response generated.';
 
   const citations = (metadatas || []).map((meta: any, index: number) => ({
     number: index + 1,
@@ -176,5 +195,40 @@ ${payload.question}
     sourceType: meta?.sourceType,
   }));
 
-  return { answer, citations };
+  await addMessageToConversation(conversationId, 'assistant', answer, citations);
+
+  return { answer, citations, conversation_id: conversationId };
+};
+
+export const getAllConversations = async () => {
+  try {
+    const conversations = await getConversations();
+    return conversations.map((conv) => ({
+      ...conv,
+      messages: conv.messages.map((msg) => ({
+        ...msg,
+        citations: msg.citations ? JSON.parse(msg.citations) : [],
+      })),
+    }));
+  } catch (error) {
+    console.error('GetConversations Error:', error);
+    return [];
+  }
+};
+
+export const getConversation = async (id: number) => {
+  try {
+    const conversation = await getConversationById(id);
+    if (!conversation) return null;
+    return {
+      ...conversation,
+      messages: conversation.messages.map((msg) => ({
+        ...msg,
+        citations: msg.citations ? JSON.parse(msg.citations) : [],
+      })),
+    };
+  } catch (error) {
+    console.error('GetConversation Error:', error);
+    return null;
+  }
 };

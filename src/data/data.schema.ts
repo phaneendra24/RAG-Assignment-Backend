@@ -10,6 +10,11 @@ export const IngestSchema = z.object({
 
 export const QuerySchema = z.object({
   question: z.string().min(1, 'Question cannot be empty'),
+  conversation_id: z.number().optional(),
+});
+
+export const CreateConversationSchema = z.object({
+  title: z.string().optional(),
 });
 
 export type IngestInput = z.infer<typeof IngestSchema>;

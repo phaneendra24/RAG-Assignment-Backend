@@ -39,3 +39,18 @@ export const query = async (req: Request, res: Response) => {
   const results = await service.query(validation.data);
   res.status(200).json({ success: true, data: results });
 };
+
+export const getConversations = async (req: Request, res: Response) => {
+  const conversations = await service.getAllConversations();
+  res.status(200).json({ success: true, data: conversations });
+};
+
+export const getConversation = async (req: Request, res: Response) => {
+  const { id } = req.params as any;
+  const conversation = await service.getConversation(parseInt(id));
+  if (!conversation) {
+    res.status(404).json({ error: 'Conversation not found' });
+    return;
+  }
+  res.status(200).json({ success: true, data: conversation });
+};

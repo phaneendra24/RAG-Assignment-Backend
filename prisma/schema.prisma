@@ -16,3 +16,21 @@ model documents {
   created_at DateTime @default(now())
   updated_at DateTime @default(now()) @updatedAt
 }
+
+model conversations {
+  id         Int        @id @default(autoincrement())
+  title      String?
+  messages   messages[]
+  created_at DateTime   @default(now())
+  updated_at DateTime   @default(now()) @updatedAt
+}
+
+model messages {
+  id              Int          @id @default(autoincrement())
+  conversation    conversations @relation(fields: [conversation_id], references: [id], onDelete: Cascade)
+  conversation_id Int
+  role            String
+  content         String
+  citations       String?
+  created_at      DateTime     @default(now())
+}
