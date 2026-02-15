@@ -121,26 +121,26 @@ export const query = async (payload: QueryInput) => {
 
   const results = await queryVectorStore(embedding, 5);
 
-  const un_filtered_documents = results.documents[0];
+  const documents = results.documents[0];
   const metadatas = results.metadatas[0];
   const distances = results.distances?.[0];
 
-  console.log('Un filtered documents : ', distances);
+  console.log('Un filtered documents : ', documents);
 
   const SIMILARITY_THRESHOLD = 1.2;
 
-  const documents = un_filtered_documents
-    ?.map((doc, index) => ({
-      doc,
-      meta: (metadatas || [])[index],
-      distance: distances?.[index],
-    }))
-    .filter(
-      (item) =>
-        item.distance != null &&
-        item?.distance !== undefined &&
-        item.distance < SIMILARITY_THRESHOLD,
-    );
+  // const documents = un_filtered_documents
+  //   ?.map((doc, index) => ({
+  //     doc,
+  //     meta: (metadatas || [])[index],
+  //     distance: distances?.[index],
+  //   }))
+  //   .filter(
+  //     (item) =>
+  //       item.distance != null &&
+  //       item?.distance !== undefined &&
+  //       item.distance < SIMILARITY_THRESHOLD,
+  //   );
 
   if (!documents || documents.length === 0) {
     const answer = 'No relevant information found in the knowledge base.';
@@ -173,6 +173,8 @@ ${numberedContext}
 
 Question:
 ${payload.question}
+
+And do not include citations in the answer, you should response with answer. If you don't know respond with - There isn't enough information in the provided context to define or explain
 `;
 
   const response = await openai.chat.completions.create({
@@ -186,7 +188,8 @@ ${payload.question}
     ],
   });
 
-  const answer = response.choices[0]?.message?.content || 'No response generated.';
+  const answer =
+    response.choices[0]?.message?.content || 'No response generated.';
 
   const citations = (metadatas || []).map((meta: any, index: number) => ({
     number: index + 1,
@@ -195,7 +198,12 @@ ${payload.question}
     sourceType: meta?.sourceType,
   }));
 
-  await addMessageToConversation(conversationId, 'assistant', answer, citations);
+  await addMessageToConversation(
+    conversationId,
+    'assistant',
+    answer,
+    citations,
+  );
 
   return { answer, citations, conversation_id: conversationId };
 };

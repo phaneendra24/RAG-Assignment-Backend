@@ -15,7 +15,7 @@ export const initVectorStore = async () => {
     embeddingFunction: null,
   });
 
-  console.log('✓ Chroma collection ready');
+  console.log(' Chroma collection ready');
 };
 
 export const addChunkToVectorStore = async (
