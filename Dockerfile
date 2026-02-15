@@ -26,8 +26,25 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 
-# Install runtime dependencies (OpenSSL, curl, Python for chroma embeddings)
-RUN apk add --no-cache openssl curl python3
+# Install runtime dependencies:
+# - OpenSSL, curl, Python for chroma embeddings
+# - Chromium and dependencies for Puppeteer
+RUN apk add --no-cache \
+  openssl \
+  curl \
+  python3 \
+  chromium \
+  nss \
+  freetype \
+  harfbuzz \
+  ca-certificates \
+  ttf-freefont \
+  udev \
+  dbus
+
+# Tell Puppeteer to use system Chrome instead of downloading its own
+ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 
 # Copy built application and node_modules from builder
 COPY --from=builder /app/dist ./dist

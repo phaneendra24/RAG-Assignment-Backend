@@ -25,19 +25,27 @@ const openai = new OpenAI({
 
 export const ingest = async (
   payload: IngestInput,
-): Promise<{ success: boolean; message: string }> => {
+): Promise<{
+  success: boolean;
+  message: string;
+}> => {
   console.log('Ingest Payload : ', payload);
+
   try {
-    if (payload.type === 'NOTE' && typeof payload.content === 'string') {
+    if (payload.type === 'NOTE') {
       const cleanedText = textService.processAndCleanTextInput(payload.content);
 
       if (cleanedText.length <= 0) {
-        return { success: false, message: 'Failed to ingest data' };
+        return {
+          success: false,
+          message: 'Failed to ingest data: content is empty after cleaning',
+        };
       }
+
       const title = cleanedText?.split('\n')[0]?.slice(0, 80).trim() ?? '';
 
       const id = await createDocument('NOTE', title, null, cleanedText);
-      console.log('Data added to DB : ', id);
+      console.log('Note added to DB : ', id);
 
       const chunks = tokenizer.chunkText(cleanedText);
 
@@ -55,48 +63,73 @@ export const ingest = async (
           url: null,
         });
       }
-    } else if (payload.type === 'URL' && Array.isArray(payload.content)) {
-      console.log('Scrapping data started');
-      const data = await scrapeService.ScrapeAndCleanDataFromUrls(
-        payload.content,
-      );
 
-      console.log('Scrapping completed :', data);
-
-      for (let i = 0; i < data.length; i++) {
-        const item = data[i];
-        if (!item) continue;
-        const id = await createDocument(
-          'URL',
-          item?.title || '',
-          item.url,
-          item.cleanedText,
-        );
-        console.log('Data added to DB : ', id);
-
-        const chunks = tokenizer.chunkText(item.cleanedText);
-
-        for (let i = 0; i < chunks.length; i++) {
-          const chunk = chunks[i] as string;
-          if (!chunk.trim()) continue;
-
-          const embedding = await generateEmbedding(chunk);
-
-          await addChunkToVectorStore(randomUUID(), embedding, chunk, {
-            documentId: id,
-            sourceType: 'URL',
-            chunkIndex: i,
-            title: item.title,
-            url: item.url,
-          });
-        }
-      }
+      return {
+        success: true,
+        message: 'Note ingested successfully',
+      };
     }
 
-    return { success: true, message: 'Data ingested successfully' };
+    if (payload.type === 'URL') {
+      const url = payload.content.trim();
+      console.log('Scraping URL:', url);
+
+      const scrapedData = await scrapeService.ScrapeAndCleanDataFromUrl(url);
+      console.log('Scraping completed:', scrapedData);
+
+      if (!scrapedData.success) {
+        return {
+          success: false,
+          message: `Failed to scrape URL: ${scrapedData.error || 'Unknown error'}`,
+        };
+      }
+
+      // Validate content before saving
+      if (!scrapedData.cleanedText || scrapedData.cleanedText.length < 10) {
+        return {
+          success: false,
+          message: 'Insufficient content extracted from URL',
+        };
+      }
+
+      const id = await createDocument(
+        'URL',
+        scrapedData.title || 'Untitled',
+        scrapedData.url,
+        scrapedData.cleanedText,
+      );
+      console.log('URL data added to DB:', id);
+
+      const chunks = tokenizer.chunkText(scrapedData.cleanedText);
+
+      for (let i = 0; i < chunks.length; i++) {
+        const chunk = chunks[i] as string;
+        if (!chunk.trim()) continue;
+
+        const embedding = await generateEmbedding(chunk);
+
+        await addChunkToVectorStore(randomUUID(), embedding, chunk, {
+          documentId: id,
+          sourceType: 'URL',
+          chunkIndex: i,
+          title: scrapedData.title || 'Untitled',
+          url: scrapedData.url,
+        });
+      }
+
+      return {
+        success: true,
+        message: 'URL ingested successfully',
+      };
+    }
+
+    return { success: false, message: 'Invalid payload type' };
   } catch (error) {
-    console.log('Ingest Error : ', error);
-    return { success: false, message: 'Failed to ingest data' };
+    console.error('Ingest Error : ', error);
+    return {
+      success: false,
+      message: `Failed to ingest data: ${error instanceof Error ? error.message : 'Unknown error'}`,
+    };
   }
 };
 
@@ -104,8 +137,10 @@ export const getItems = async (source?: string) => {
   try {
     const data = await getDocuments(source);
     return data;
-  } catch (error) {}
-  return { success: true };
+  } catch (error) {
+    console.error('GetItems Error:', error);
+    return [];
+  }
 };
 
 export const query = async (payload: QueryInput) => {
@@ -123,24 +158,8 @@ export const query = async (payload: QueryInput) => {
 
   const documents = results.documents[0];
   const metadatas = results.metadatas[0];
-  const distances = results.distances?.[0];
 
   console.log('Un filtered documents : ', documents);
-
-  const SIMILARITY_THRESHOLD = 1.2;
-
-  // const documents = un_filtered_documents
-  //   ?.map((doc, index) => ({
-  //     doc,
-  //     meta: (metadatas || [])[index],
-  //     distance: distances?.[index],
-  //   }))
-  //   .filter(
-  //     (item) =>
-  //       item.distance != null &&
-  //       item?.distance !== undefined &&
-  //       item.distance < SIMILARITY_THRESHOLD,
-  //   );
 
   if (!documents || documents.length === 0) {
     const answer = 'No relevant information found in the knowledge base.';
@@ -191,12 +210,20 @@ And do not include citations in the answer, you should response with answer. If 
   const answer =
     response.choices[0]?.message?.content || 'No response generated.';
 
-  const citations = (metadatas || []).map((meta: any, index: number) => ({
-    number: index + 1,
-    title: meta?.title,
-    url: meta?.url,
-    sourceType: meta?.sourceType,
-  }));
+  const citations = (metadatas || [])
+    .map((meta: any) => ({
+      title: meta?.title,
+      url: meta?.url,
+      sourceType: meta?.sourceType,
+    }))
+    .filter(
+      (citation, index, self) =>
+        citation.url && self.findIndex((c) => c.url === citation.url) === index,
+    )
+    .map((citation, index) => ({
+      ...citation,
+      number: index + 1,
+    }));
 
   await addMessageToConversation(
     conversationId,

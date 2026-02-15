@@ -23,7 +23,6 @@ export const getItems = async (req: Request, res: Response) => {
   }
 
   const items = await service.getItems(source as string);
-  console.log('ALl items : ', items);
 
   res.status(200).json({ success: true, data: items });
 };
