@@ -1,7 +1,7 @@
 import { IngestInput, QueryInput } from './data.schema';
 import * as textService from '../services/text.service';
 import * as scrapeService from '../services/scrape.service';
-import { createDocument } from '../db/queries';
+import { createDocument, getDocuments } from '../db/queries';
 import * as tokenizer from '../services/tokenizer';
 import { generateEmbedding } from '../services/embedding';
 import {
@@ -92,7 +92,11 @@ export const ingest = async (
   }
 };
 
-export const getItems = async () => {
+export const getItems = async (source?: string) => {
+  try {
+    const data = await getDocuments(source);
+    return data;
+  } catch (error) {}
   return { success: true };
 };
 
@@ -136,6 +140,8 @@ export const query = async (payload: QueryInput) => {
     })
     .filter(Boolean)
     .join('\n\n');
+
+  console.log('numbered context :', numberedContext);
 
   const prompt = `
 You are a helpful assistant.

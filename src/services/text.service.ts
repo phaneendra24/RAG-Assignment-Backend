@@ -32,5 +32,3 @@ export const processAndCleanTextInput = (text: string): string => {
 
   return cleaned;
 };
-
-// cleaned = cleaned.replace(/[^a-zA-Z0-9\s]{4,}/g, ' '); // Just putting it but this is optional, comment for myself to examine later

@@ -1,36 +1,58 @@
 version: '3.9'
 
 services:
-  # app:
-  #   build: .
-  #   ports:
-  #     - '5001:5001'
-  #   volumes:
-  #     - .:/app
-  #     - /app/node_modules
-  #   environment:
-  #     - NODE_ENV=development
-  #     - PORT=5001
-  #     - CHROMA_DB_URL=http://chromadb:8000
-  #   depends_on:
-  #     - chromadb
-  #   command: npm run dev
-  #   networks:
-  #     - rag-network
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - '5001:5001'
+    volumes:
+      - sqlite_data:/app/prisma
+    env_file: .env
+    environment:
+      - NODE_ENV=production
+      - PORT=5001
+      - CHROMA_DB_URL=http://chromadb:8000
+      - DATABASE_URL=file:./prisma/dev.db
+    depends_on:
+      chromadb:
+        condition: service_healthy
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - rag-network
 
   chromadb:
-    image: chromadb/chroma:latest
+    image: chromadb/chroma:0.5.20
     ports:
       - '8000:8000'
     volumes:
       - chroma-data:/chroma/chroma
     environment:
       - IS_PERSISTENT=TRUE
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v2/heartbeat"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     networks:
       - rag-network
 
 volumes:
   chroma-data:
+  sqlite_data:
 
 networks:
   rag-network:

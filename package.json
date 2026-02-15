@@ -4,9 +4,14 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "dev": "tsx --watch src/app.ts",
+    "dev": "prisma migrate dev --name init && tsx --watch src/app.ts",
     "start": "node dist/app.js",
-    "build": "tsc",
+    "build": "tsc && prisma generate --schema=./prisma/schema.prisma",
+    "db:migrate": "prisma migrate dev",
+    "db:generate": "prisma generate",
+    "db:studio": "prisma studio",
+    "postinstall": "prisma generate",
+    "deploy": "docker compose up -d --build",
     "type-check": "tsc --noEmit",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
@@ -16,12 +21,14 @@
   "dependencies": {
     "@chroma-core/default-embed": "^0.1.9",
     "@mozilla/readability": "^0.6.0",
+    "@prisma/client": "^5.22.0",
     "chromadb": "^3.3.0",
     "cors": "^2.8.6",
     "dotenv": "^17.3.1",
     "express": "^5.2.1",
     "jsdom": "^28.0.0",
     "openai": "^6.22.0",
+    "prisma": "^5.22.0",
     "sqlite3": "^5.1.7",
     "tiktoken": "^1.0.22",
     "zod": "^4.3.6"

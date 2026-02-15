@@ -1,13 +1,47 @@
-FROM node:20-alpine
+# Stage 1: Build
+FROM node:22.15.0-alpine AS builder
 
 WORKDIR /app
 
+# Install build dependencies for native modules (Python, build tools, OpenSSL)
+RUN apk add --no-cache python3 make g++ openssl
+
+# Copy package files and prisma schema (needed for postinstall)
 COPY package*.json ./
+COPY prisma ./prisma
 
-RUN npm install
+# Install all dependencies (including devDependencies for build)
+RUN npm ci
 
+# Copy remaining source code
 COPY . .
 
+# Build TypeScript
+RUN npm run build
+
+# Stage 2: Production
+FROM node:22.15.0-alpine
+
+WORKDIR /app
+
+ENV NODE_ENV=production
+
+# Install runtime dependencies (OpenSSL, curl, Python for chroma embeddings)
+RUN apk add --no-cache openssl curl python3
+
+# Copy built application and node_modules from builder
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/package*.json ./
+COPY --from=builder /app/prisma ./prisma
+
+# Copy start script
+COPY docker-entrypoint.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
+# Expose app port
 EXPOSE 5001
 
-CMD ["npm", "run", "dev"]
+# Start the application with migrations
+ENTRYPOINT ["docker-entrypoint.sh"]
+CMD ["npm", "start"]

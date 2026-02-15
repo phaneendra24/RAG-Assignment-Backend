@@ -1,7 +1,8 @@
 import { ChromaClient, Collection } from 'chromadb';
 
 const client = new ChromaClient({
-  path: 'http://localhost:8000',
+  host: 'chromadb',
+  port: Number(process.env.CHROMA_PORT) || 8000,
 });
 
 const COLLECTION_NAME = 'knowledge_base';
@@ -11,9 +12,10 @@ let collection: Collection;
 export const initVectorStore = async () => {
   collection = await client.getOrCreateCollection({
     name: COLLECTION_NAME,
+    embeddingFunction: null,
   });
 
-  console.log(' Chroma collection ready');
+  console.log('✓ Chroma collection ready');
 };
 
 export const addChunkToVectorStore = async (

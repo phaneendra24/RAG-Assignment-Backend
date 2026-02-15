@@ -1,4 +1,4 @@
-import { run } from './helper';
+import { prisma } from './index';
 
 export const createDocument = async (
   source: string,
@@ -6,11 +6,31 @@ export const createDocument = async (
   url: string | null,
   content: string,
 ) => {
-  const sql = `
-    INSERT INTO documents (source, title, url, content)
-    VALUES (?, ?, ?, ?)
-  `;
+  const result = await prisma.documents.create({
+    data: {
+      source,
+      title,
+      url,
+      content,
+    },
+  });
+  return result.id;
+};
 
-  const result = await run(sql, [source, title, url, content]);
-  return result.lastID;
+export const getDocuments = async (source?: string) => {
+  if (source) {
+    return prisma.documents.findMany({
+      where: {
+        source,
+      },
+      orderBy: {
+        created_at: 'desc',
+      },
+    });
+  }
+  return prisma.documents.findMany({
+    orderBy: {
+      created_at: 'desc',
+    },
+  });
 };

@@ -35,7 +35,6 @@ export const chunkText = (text: string): string[] => {
   for (const paragraph of paragraphs) {
     const paragraphTokens = countTokens(paragraph);
 
-    // If paragraph itself exceeds max tokens → sentence-level split
     if (paragraphTokens > MAX_CHUNK_TOKENS) {
       const sentences = splitIntoSentences(paragraph);
 

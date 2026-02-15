@@ -11,12 +11,21 @@ export const ingest = async (req: Request, res: Response) => {
   }
 
   const result = await service.ingest(validation.data);
-  res.status(201).json(result);
+  res.status(201).json({ success: true, data: result });
 };
 
-export const getItems = async (_req: Request, res: Response) => {
-  const items = await service.getItems();
-  res.json(items);
+export const getItems = async (req: Request, res: Response) => {
+  const { source } = req.query;
+
+  if (!source) {
+    res.status(400).json({ error: 'Source is required' });
+    return;
+  }
+
+  const items = await service.getItems(source as string);
+  console.log('ALl items : ', items);
+
+  res.status(200).json({ success: true, data: items });
 };
 
 export const query = async (req: Request, res: Response) => {
@@ -28,5 +37,5 @@ export const query = async (req: Request, res: Response) => {
   }
 
   const results = await service.query(validation.data);
-  res.json(results);
+  res.status(200).json({ success: true, data: results });
 };
