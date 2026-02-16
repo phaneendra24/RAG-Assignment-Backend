@@ -84,7 +84,6 @@ export const ingest = async (
         };
       }
 
-      // Validate content before saving
       if (!scrapedData.cleanedText || scrapedData.cleanedText.length < 10) {
         return {
           success: false,
@@ -154,14 +153,21 @@ export const query = async (payload: QueryInput) => {
 
   const embedding = await generateEmbedding(payload.question);
 
-  const results = await queryVectorStore(embedding, 5);
+  const results = await queryVectorStore(embedding, 7);
 
-  const documents = results.documents[0];
-  const metadatas = results.metadatas[0];
+  const documents = results.documents[0] || [];
+  const metadatas = results.metadatas[0] || [];
 
-  console.log('Un filtered documents : ', documents);
+  const validDocuments = documents
+    .map((doc, index) => ({
+      doc,
+      metadata: metadatas[index],
+      index,
+    }))
+    .filter((item) => item.doc)
+    .slice(0, 5);
 
-  if (!documents || documents.length === 0) {
+  if (validDocuments.length === 0) {
     const answer = 'No relevant information found in the knowledge base.';
     await addMessageToConversation(conversationId, 'assistant', answer, []);
     return {
@@ -171,21 +177,15 @@ export const query = async (payload: QueryInput) => {
     };
   }
 
-  const numberedContext = documents
-    .map((doc, index) => {
-      if (!doc) return null;
-      return `[${index + 1}] ${doc}`;
-    })
-    .filter(Boolean)
+  const numberedContext = validDocuments
+    .map((item, idx) => `[${idx + 1}] ${item.doc}`)
     .join('\n\n');
-
-  console.log('numbered context :', numberedContext);
 
   const prompt = `
 You are a helpful assistant.
 
 Use ONLY the provided context to answer.
-When referencing information, cite using [number].
+When referencing information, cite using [number] format.
 
 Context:
 ${numberedContext}
@@ -193,7 +193,7 @@ ${numberedContext}
 Question:
 ${payload.question}
 
-And do not include citations in the answer, you should response with answer. If you don't know respond with - There isn't enough information in the provided context to define or explain
+Provide a clear answer. Only cite sources using [number] notation when directly referencing information from the context. If the context doesn't contain the answer, respond with: There isn't enough information in the provided context to define or explain.
 `;
 
   const response = await openai.chat.completions.create({
@@ -210,20 +210,30 @@ And do not include citations in the answer, you should response with answer. If 
   const answer =
     response.choices[0]?.message?.content || 'No response generated.';
 
-  const citations = (metadatas || [])
-    .map((meta: any) => ({
-      title: meta?.title,
-      url: meta?.url,
-      sourceType: meta?.sourceType,
+  const citationRegex = /\[(\d+)\]/g;
+  const citedNumbers = new Set<number>();
+  let match;
+  while ((match = citationRegex.exec(answer)) !== null) {
+    if (match[1]) {
+      const num = parseInt(match[1], 10);
+      if (num > 0 && num <= validDocuments.length) {
+        citedNumbers.add(num);
+      }
+    }
+  }
+
+  const citations = Array.from(citedNumbers)
+    .sort((a, b) => a - b)
+    .map((num) => ({
+      number: num,
+      title: validDocuments[num - 1]?.metadata?.title,
+      url: validDocuments[num - 1]?.metadata?.url,
+      sourceType: validDocuments[num - 1]?.metadata?.sourceType,
     }))
     .filter(
       (citation, index, self) =>
         citation.url && self.findIndex((c) => c.url === citation.url) === index,
-    )
-    .map((citation, index) => ({
-      ...citation,
-      number: index + 1,
-    }));
+    );
 
   await addMessageToConversation(
     conversationId,

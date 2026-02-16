@@ -3,7 +3,6 @@ import { JSDOM } from 'jsdom';
 import puppeteer from 'puppeteer';
 import { processAndCleanTextInput } from './text.service';
 
-// Configuration
 const SCRAPING_FALLBACK_THRESHOLD = parseInt(
   process.env.SCRAPING_FALLBACK_THRESHOLD || '500',
 );
@@ -191,6 +190,8 @@ const fetchWithPuppeteer = async (url: string): Promise<string> => {
 const scrapeUrlWithFallback = async (url: string): Promise<ScrapedData> => {
   console.log(`Scraping URL: ${url}`);
 
+  let staticError: Error | null = null;
+
   try {
     const staticHtml = await fetchHTML(url);
     const staticResult = CleanUpAndExtractData(staticHtml, url);
@@ -203,7 +204,15 @@ const scrapeUrlWithFallback = async (url: string): Promise<ScrapedData> => {
     console.log(
       `Static content insufficient (${staticResult.cleanedText.length} chars), trying Puppeteer...`,
     );
+  } catch (error) {
+    staticError =
+      error instanceof Error ? error : new Error('Static scraping failed');
+    console.log(
+      `Static scraping failed: ${staticError.message}, trying Puppeteer...`,
+    );
+  }
 
+  try {
     const spaHtml = await fetchWithPuppeteer(url);
     const spaResult = CleanUpAndExtractData(spaHtml, url);
 
@@ -214,9 +223,16 @@ const scrapeUrlWithFallback = async (url: string): Promise<ScrapedData> => {
     }
 
     return spaResult;
-  } catch (error) {
-    console.error(`Failed to scrape ${url}:`, error);
-    throw error;
+  } catch (puppeteerError) {
+    const puppeteerErr =
+      puppeteerError instanceof Error
+        ? puppeteerError
+        : new Error('Puppeteer scraping failed');
+    console.error(
+      `Failed to scrape ${url} with both methods:`,
+      puppeteerErr.message,
+    );
+    throw puppeteerErr;
   }
 };
 

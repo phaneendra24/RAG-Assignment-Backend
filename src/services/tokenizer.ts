@@ -8,9 +8,6 @@ export const encodeText = (text: string): Uint32Array => {
   return encoder.encode(text);
 };
 
-// export const decodeTokens = (tokens: Uint32Array | number[]): string => {
-//   return textDecoder.decode(encoder.decode(tokens));
-// };
 
 const MAX_CHUNK_TOKENS = 500;
 

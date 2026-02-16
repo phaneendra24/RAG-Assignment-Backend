@@ -6,12 +6,18 @@ export const ingest = async (req: Request, res: Response) => {
   const validation = IngestSchema.safeParse(req.body);
 
   if (!validation.success) {
-    res.status(400).json({ error: validation.error.issues });
+    res.status(400).json({ success: false, error: validation.error.issues });
     return;
   }
 
   const result = await service.ingest(validation.data);
-  res.status(201).json({ success: true, data: result });
+  
+  if (!result.success) {
+    res.status(422).json({ success: false, message: result.message });
+    return;
+  }
+  
+  res.status(201).json({ success: true, message: result.message });
 };
 
 export const getItems = async (req: Request, res: Response) => {
