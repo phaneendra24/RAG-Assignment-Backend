@@ -1,6 +1,6 @@
 # RAG Assignment Backend
 
-A robust backend service for a Retrieval-Augmented Generation (RAG) system, built with Node.js, Express, and OpenAI.
+A backend service for a Retrieval-Augmented Generation (RAG) system, built with Node.js, Express, and OpenAI.
 
 ## Repository
 
@@ -91,8 +91,11 @@ The API will be available at `http://localhost:5001`.
 
 ### Vector Store: ChromaDB
 
-**Decision**: Run ChromaDB locally via Docker.
-**Tradeoff**: Self-hosting ChromaDB requires managing the container/volume, but it keeps data private and avoids external cloud vector DB costs/latency during development.
+### Vector Store: ChromaDB
+
+**Decision**: Use ChromaDB running locally via Docker.
+**Rationale**: Chroma is open-source, lightweight, and offers a great developer experience for local setups without needing an external API key or cloud provisioning. It supports persistent storage easily.
+**Tradeoff**: Self-hosting means managing the infrastructure. For valid production use cases, a managed service (like Pinecone or Weaviate Cloud) would offload operational complexity (backups, scaling).
 
 ### Scraper: Puppeteer
 
@@ -124,3 +127,21 @@ Instead of arbitrarily slicing text every $N$ characters, we use a paragraph-fir
 
 - **Context Quality**: Models perform better when given complete thoughts. Cutting a sentence in half destroys its semantic meaning, leading to poor embeddings and irrelevant retrieval.
 - **Efficiency**: 500 tokens is a "sweet spot" — large enough to contain a full answer context, but small enough to retrieve multiple diverse chunks (top-k=5) without blowing up the prompt cost.
+
+## What Breaks at Scale
+
+As the application grows from a prototype to a production system, several bottlenecks will emerge:
+
+1.  **SQLite Concurrency**: SQLite is excellent for read-heavy workloads but locks the database during writes. High volumes of concurrent chat logs or document indexing jobs will encounter `SQLITE_BUSY` errors.
+2.  **Puppeteer Resource Usage**: Headless Chrome is extremely memory and CPU intensive. Launching a browser instance for every scraping request will quickly crash the server under load.
+3.  **Vector Search Latency**: As the number of embeddings grows into the millions, flat index search becomes too slow. Approximate nearest neighbor (ANN) indexing tuning is required, which Chroma handles, but resource requirements (RAM) will spike.
+4.  **Single-Threaded Node.js**: Heavy computational tasks (like parsing massive text files or calculating embeddings) can block the main event loop, making the API unresponsive to other requests.
+
+## Going to Production
+
+To address the limitations above, the following architectural changes are recommended:
+
+1.  **Database Migration**: Switch from SQLite to **PostgreSQL**. It handles high concurrency gracefully and supports native vector extensions (pgvector) if we wanted to consolidate infrastructure.
+2.  **Async Job Queue**: Decouple scraping from the HTTP request-response cycle. Use a message queue (Redis/BullMQ) to process URLs in the background. This prevents browser crashes from killing the API server.
+3.  **Managed Vector Store**: Move to a managed provider (Pinecone, AWS OpenSearch, or Chroma Cloud) to handle replication, sharding, and high availability.
+4.  **Rate Limiting & Caching**: Implement Redis-based rate limiting to prevent abuse and cache frequent queries to save on OpenAI costs and reduce latency.
